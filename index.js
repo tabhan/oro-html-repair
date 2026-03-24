@@ -145,24 +145,24 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, {error: 'Missing or invalid "url" field'});
     }
 
-    let html;
+    let response;
     try {
-        const response = await axios.get(url, {
-            responseType: 'text',
+        response = await axios.get(url, {
+            responseType: 'arraybuffer',
             maxRedirects: 10,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (compatible; html-repair/1.0)'
             }
         });
-        html = response.data;
     } catch (err) {
         const status = err.response ? err.response.status : 502;
         return sendJson(res, status, {error: `Failed to fetch URL: ${err.message}`});
     }
 
-    // jsdom uses the same HTML5 parsing algorithm as browsers (parse5),
-    // which automatically repairs malformed markup (unclosed tags, etc.)
-    const dom = new JSDOM(html);
+    // Pass the raw buffer and content type to JSDOM so it can detect encoding
+    // from both HTTP headers and <meta> tags (handles windows-1252, iso-8859-1, etc.)
+    const contentType = response.headers['content-type'] || 'text/html';
+    const dom = new JSDOM(Buffer.from(response.data), {contentType});
     const whitelist = buildWhitelist(allowedAttributes);
     const violations = sanitizeAttributes(dom.window.document, whitelist);
 
