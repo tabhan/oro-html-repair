@@ -89,7 +89,6 @@ function sanitizeAttributes(document, whitelist) {
 
         const toRemove = [];
         for (const attr of el.attributes) {
-            // Sanitize invalid characters in attribute values
             if (/[<>]/.test(attr.value)) {
                 const original = attr.value;
                 attr.value = attr.value.replace(/[<>]/g, '');
@@ -102,7 +101,6 @@ function sanitizeAttributes(document, whitelist) {
                 });
             }
 
-            // Remove attributes not in whitelist
             if (!allowed.has(attr.name)) {
                 toRemove.push(attr.name);
                 violations.push({
@@ -120,6 +118,33 @@ function sanitizeAttributes(document, whitelist) {
     }
 
     return violations;
+}
+
+function fetchUrl(url) {
+    return axios.get(url, {
+        responseType: 'arraybuffer',
+        maxRedirects: 10,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; html-repair/1.0)'
+        }
+    });
+}
+
+function repairHtml(data, contentType, allowedAttributes) {
+    // JSDOM uses parse5 (HTML5 spec) which auto-closes unclosed tags,
+    // fixes invalid nesting (e.g. <p> containing block elements), and
+    // normalizes the document structure.
+    const dom = new JSDOM(Buffer.from(data), {contentType});
+    const document = dom.window.document;
+
+    const whitelist = buildWhitelist(allowedAttributes);
+    const violations = sanitizeAttributes(document, whitelist);
+
+    // Extract body innerHTML only — avoids <html>/<head>/<body> wrappers
+    // that cause issues when downstream PHP re-parses with LIBXML_HTML_NOIMPLIED
+    const html = document.body ? document.body.innerHTML : dom.serialize();
+
+    return {html, violations};
 }
 
 const server = http.createServer(async (req, res) => {
@@ -147,31 +172,14 @@ const server = http.createServer(async (req, res) => {
 
     let response;
     try {
-        response = await axios.get(url, {
-            responseType: 'arraybuffer',
-            maxRedirects: 10,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; html-repair/1.0)'
-            }
-        });
+        response = await fetchUrl(url);
     } catch (err) {
         const status = err.response ? err.response.status : 502;
         return sendJson(res, status, {error: `Failed to fetch URL: ${err.message}`});
     }
 
-    // Pass the raw buffer and content type to JSDOM so it can detect encoding
-    // from both HTTP headers and <meta> tags (handles windows-1252, iso-8859-1, etc.)
     const contentType = response.headers['content-type'] || 'text/html';
-    const dom = new JSDOM(Buffer.from(response.data), {contentType});
-    const whitelist = buildWhitelist(allowedAttributes);
-    const violations = sanitizeAttributes(dom.window.document, whitelist);
-
-    const repaired = dom.serialize();
-
-    const result = {
-        html: repaired,
-        violations
-    };
+    const result = repairHtml(response.data, contentType, allowedAttributes);
 
     const resultBody = JSON.stringify(result);
     res.writeHead(200, {
