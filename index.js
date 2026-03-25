@@ -20,7 +20,7 @@ const DEFAULT_WHITELIST = {
     tr: ['align', 'valign'],
     td: ['align', 'valign', 'rowspan', 'colspan', 'bgcolor', 'nowrap', 'width', 'height'],
     th: ['align', 'valign', 'rowspan', 'colspan', 'bgcolor', 'nowrap', 'width', 'height', 'scope'],
-    a: ['href', 'target', 'title', 'data-action', 'tabindex', 'role', 'data-toggle', 'data-slide', 'data-trigger', 'aria-label', 'aria-disabled', 'aria-expanded', 'aria-controls', 'aria-haspopup', 'aria-selected', 'data-content', 'data-placement'],
+    a: ['href', 'data-yt-id', 'target', 'title', 'data-action', 'tabindex', 'role', 'data-toggle', 'data-slide', 'data-trigger', 'aria-label', 'aria-disabled', 'aria-expanded', 'aria-controls', 'aria-haspopup', 'aria-selected', 'data-content', 'data-placement'],
     div: ['data-title', 'data-type', 'data-bg', 'role', 'aria-label', 'aria-labelledby', 'aria-orientation', 'aria-valuenow', 'aria-valuemin', 'aria-valuemax', 'aria-live', 'aria-atomic', 'data-spy', 'data-ride', 'data-interval', 'data-parent', 'data-target', 'data-offset', 'data-delay', 'data-autohide', 'tabindex', 'aria-hidden'],
     button: ['type', 'title', 'aria-label', 'aria-haspopup', 'aria-expanded', 'aria-labelledby', 'aria-controls', 'data-dismiss', 'data-toggle', 'data-target', 'data-display', 'data-content', 'data-container', 'data-placement', 'disabled'],
     span: ['data-title', 'data-type', 'title', 'role', 'aria-hidden', 'data-toggle', 'data-content', 'tabindex'],
