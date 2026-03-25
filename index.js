@@ -120,6 +120,26 @@ function sanitizeAttributes(document, whitelist) {
     return violations;
 }
 
+/**
+ * Strip HTML tags (e.g. <p>, <br />) that appear as literal text inside <style>
+ * elements. Some CMS editors inject markup into CSS blocks.
+ */
+function sanitizeStyleElements(document, violations) {
+    const styleNodes = document.querySelectorAll('style');
+    for (const style of styleNodes) {
+        const original = style.textContent;
+        const cleaned = original.replace(/<\/?[a-zA-Z][^>]*\/?>/g, '');
+        if (cleaned !== original) {
+            style.textContent = cleaned;
+            violations.push({
+                tag: 'style',
+                issue: 'html_in_css',
+                message: 'Removed HTML tags from <style> element content'
+            });
+        }
+    }
+}
+
 function fetchUrl(url) {
     return axios.get(url, {
         responseType: 'arraybuffer',
@@ -136,9 +156,13 @@ function repairHtml(data, contentType, allowedAttributes) {
     // normalizes the document structure.
     const dom = new JSDOM(Buffer.from(data), {contentType});
     const document = dom.window.document;
+    const violations = [];
+
+    // Clean HTML tags from inside <style> elements (e.g. <p>, <br /> injected by CMS editors)
+    sanitizeStyleElements(document, violations);
 
     const whitelist = buildWhitelist(allowedAttributes);
-    const violations = sanitizeAttributes(document, whitelist);
+    violations.push(...sanitizeAttributes(document, whitelist));
 
     // Extract body innerHTML only — avoids <html>/<head>/<body> wrappers
     // that cause issues when downstream PHP re-parses with LIBXML_HTML_NOIMPLIED
