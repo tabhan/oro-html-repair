@@ -166,7 +166,7 @@ function repairHtml(data, contentType, allowedAttributes) {
 
     // Extract body innerHTML only — avoids <html>/<head>/<body> wrappers
     // that cause issues when downstream PHP re-parses with LIBXML_HTML_NOIMPLIED
-    const html = document.body ? document.body.innerHTML : dom.serialize();
+    const html = document.body ? document.body.outerHTML : dom.serialize();
 
     return {html, violations};
 }
