@@ -164,11 +164,13 @@ function repairHtml(data, contentType, allowedAttributes) {
     const whitelist = buildWhitelist(allowedAttributes);
     violations.push(...sanitizeAttributes(document, whitelist));
 
+    const title = document.querySelector('title')?.textContent?.trim() || null;
+
     // Extract body innerHTML only — avoids <html>/<head>/<body> wrappers
     // that cause issues when downstream PHP re-parses with LIBXML_HTML_NOIMPLIED
     const html = document.body ? document.body.outerHTML : dom.serialize();
 
-    return {html, violations};
+    return {html, title, violations};
 }
 
 const server = http.createServer(async (req, res) => {
