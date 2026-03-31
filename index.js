@@ -151,10 +151,18 @@ function fetchUrl(url) {
 }
 
 function repairHtml(data, contentType, allowedAttributes) {
-    // JSDOM uses parse5 (HTML5 spec) which auto-closes unclosed tags,
+    // Pre-process: decode to string and restore closing tags that were accidentally
+    // wrapped in HTML comments (e.g. <!-- </div> -->). Some CMS pages have this pattern
+    // where a closing tag is commented out, leaving its parent element unclosed.
+    // JSDOM/parse5 treats comments as no-ops, so it would nest subsequent siblings
+    // inside the unclosed parent instead of placing them correctly.
+    const raw = Buffer.from(data).toString('utf8');
+    const preProcessed = raw.replace(/<!--\s*(<\/[a-zA-Z][^>]*>)\s*-->/g, '$1');
+
+    // JSDOM uses parse5 (HTML5 spec) which auto-closes remaining unclosed tags,
     // fixes invalid nesting (e.g. <p> containing block elements), and
     // normalizes the document structure.
-    const dom = new JSDOM(Buffer.from(data), {contentType});
+    const dom = new JSDOM(preProcessed, {contentType});
     const document = dom.window.document;
     const violations = [];
 
