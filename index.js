@@ -21,7 +21,7 @@ const DEFAULT_WHITELIST = {
     td: ['align', 'valign', 'rowspan', 'colspan', 'bgcolor', 'nowrap', 'width', 'height'],
     th: ['align', 'valign', 'rowspan', 'colspan', 'bgcolor', 'nowrap', 'width', 'height', 'scope'],
     a: ['href', 'data-yt-id', 'target', 'title', 'data-action', 'tabindex', 'data-toggle', 'data-slide', 'data-trigger', 'aria-label', 'aria-disabled', 'aria-expanded', 'aria-controls', 'aria-haspopup', 'aria-selected', 'data-content', 'data-placement'],
-    div: ['data-title', 'data-type', 'data-bg', 'aria-label', 'aria-labelledby', 'aria-orientation', 'aria-valuenow', 'aria-valuemin', 'aria-valuemax', 'aria-live', 'aria-atomic', 'data-spy', 'data-ride', 'data-interval', 'data-parent', 'data-target', 'data-offset', 'data-delay', 'data-autohide', 'tabindex', 'aria-hidden'],
+    div: ['data-title', 'data-type', 'data-bg', 'data-href', 'aria-label', 'aria-labelledby', 'aria-orientation', 'aria-valuenow', 'aria-valuemin', 'aria-valuemax', 'aria-live', 'aria-atomic', 'data-spy', 'data-ride', 'data-interval', 'data-parent', 'data-target', 'data-offset', 'data-delay', 'data-autohide', 'tabindex', 'aria-hidden'],
     button: ['type', 'title', 'aria-label', 'aria-haspopup', 'aria-expanded', 'aria-labelledby', 'aria-controls', 'data-dismiss', 'data-toggle', 'data-target', 'data-display', 'data-content', 'data-container', 'data-placement', 'disabled'],
     span: ['data-title', 'data-type', 'title', 'aria-hidden', 'data-toggle', 'data-content', 'tabindex'],
     nav: ['aria-label'],
@@ -74,6 +74,21 @@ function buildWhitelist(override) {
         merged[tag.toLowerCase()] = Array.isArray(attrs) ? attrs : [];
     }
     return merged;
+}
+
+/**
+ * Convert onclick="window.location.href='...'" to data-href before sanitization
+ * strips the onclick attribute. Downstream PHP processors convert these into <a> tags.
+ */
+function convertOnclickToDataHref(document) {
+    const elements = document.querySelectorAll('[onclick]');
+    for (const el of elements) {
+        const onclick = el.getAttribute('onclick');
+        const match = onclick.match(/window\.location\.href\s*=\s*['"]([^'"]+)['"]/);
+        if (match) {
+            el.setAttribute('data-href', match[1]);
+        }
+    }
 }
 
 function sanitizeAttributes(document, whitelist) {
@@ -168,6 +183,9 @@ function repairHtml(data, contentType, allowedAttributes) {
 
     // Clean HTML tags from inside <style> elements (e.g. <p>, <br /> injected by CMS editors)
     sanitizeStyleElements(document, violations);
+
+    // Preserve onclick navigation URLs as data-href before sanitization removes onclick
+    convertOnclickToDataHref(document);
 
     const whitelist = buildWhitelist(allowedAttributes);
     violations.push(...sanitizeAttributes(document, whitelist));
