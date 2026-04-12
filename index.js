@@ -1,10 +1,15 @@
 'use strict';
 
 const http = require('http');
+const https = require('https');
 const axios = require('axios');
 const {JSDOM} = require('jsdom');
 
 const PORT = 3003;
+
+// Reuse TCP connections to avoid ETIMEDOUT from rate-limiting on new connections
+const httpsAgent = new https.Agent({keepAlive: true, maxSockets: 5});
+const httpAgent = new http.Agent({keepAlive: true, maxSockets: 5});
 
 // Global attributes allowed on every element (mirrors Oro's @[id|style|class])
 const GLOBAL_ATTRS = ['id', 'style', 'class'];
@@ -155,13 +160,24 @@ function sanitizeStyleElements(document, violations) {
     }
 }
 
-function fetchUrl(url) {
+function fetchUrl(url, retries = 3) {
     return axios.get(url, {
         responseType: 'arraybuffer',
         maxRedirects: 10,
+        timeout: 30000,
+        httpAgent,
+        httpsAgent,
         headers: {
             'User-Agent': 'Mozilla/5.0 (compatible; html-repair/1.0)'
         }
+    }).catch(async (err) => {
+        if (retries > 0 && (!err.response || err.response.status >= 500)) {
+            const delay = (4 - retries) * 3000;
+            console.warn(`Retry ${4 - retries}/3 for ${url} after ${delay}ms (${err.code || err.message})`);
+            await new Promise(r => setTimeout(r, delay));
+            return fetchUrl(url, retries - 1);
+        }
+        throw err;
     });
 }
 
