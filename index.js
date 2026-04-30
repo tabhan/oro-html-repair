@@ -160,22 +160,39 @@ function sanitizeStyleElements(document, violations) {
     }
 }
 
-function fetchUrl(url, retries = 3) {
+function buildCookieHeader(cookies) {
+    if (!cookies || typeof cookies !== 'object') {
+        return null;
+    }
+    const parts = Object.entries(cookies)
+        .filter(([name, value]) => name && value !== undefined && value !== null)
+        .map(([name, value]) => `${name}=${value}`);
+    return parts.length ? parts.join('; ') : null;
+}
+
+function fetchUrl(url, options = {}, retries = 3) {
+    const headers = {
+        'User-Agent': 'Mozilla/5.0 (compatible; html-repair/1.0)',
+        ...(options.headers || {})
+    };
+    const cookieHeader = buildCookieHeader(options.cookies);
+    if (cookieHeader) {
+        headers.Cookie = headers.Cookie ? `${headers.Cookie}; ${cookieHeader}` : cookieHeader;
+    }
+
     return axios.get(url, {
         responseType: 'arraybuffer',
         maxRedirects: 10,
         timeout: 30000,
         httpAgent,
         httpsAgent,
-        headers: {
-            'User-Agent': 'Mozilla/5.0 (compatible; html-repair/1.0)'
-        }
+        headers
     }).catch(async (err) => {
         if (retries > 0 && (!err.response || err.response.status >= 500)) {
             const delay = (4 - retries) * 3000;
             console.warn(`Retry ${4 - retries}/3 for ${url} after ${delay}ms (${err.code || err.message})`);
             await new Promise(r => setTimeout(r, delay));
-            return fetchUrl(url, retries - 1);
+            return fetchUrl(url, options, retries - 1);
         }
         throw err;
     });
@@ -227,9 +244,9 @@ const server = http.createServer(async (req, res) => {
         return sendJson(res, 400, {error: 'Failed to read request body'});
     }
 
-    let url, allowedAttributes;
+    let url, allowedAttributes, cookies, headers;
     try {
-        ({url, allowedAttributes} = JSON.parse(body));
+        ({url, allowedAttributes, cookies, headers} = JSON.parse(body));
     } catch {
         return sendJson(res, 400, {error: 'Invalid JSON body'});
     }
@@ -240,7 +257,7 @@ const server = http.createServer(async (req, res) => {
 
     let response;
     try {
-        response = await fetchUrl(url);
+        response = await fetchUrl(url, {cookies, headers});
     } catch (err) {
         const status = err.response ? err.response.status : 502;
         return sendJson(res, status, {error: `Failed to fetch URL: ${err.message}`});
@@ -259,5 +276,5 @@ const server = http.createServer(async (req, res) => {
 
 server.listen(PORT, () => {
     console.log(`HTML repair service listening on http://localhost:${PORT}`);
-    console.log('Usage: POST /repair  body: { "url": "...", "allowedAttributes": {...} }');
+    console.log('Usage: POST /repair  body: { "url": "...", "allowedAttributes": {...}, "cookies": {...}, "headers": {...} }');
 });
